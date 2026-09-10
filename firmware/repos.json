@@ -21,7 +21,8 @@
         "patch": "patches/xiaozhi-esp32.patch",
         "extra_patches": [
             "patches/xiaozhi-i2c-trystate.patch",
-            "patches/xiaozhi-assets-lvgl-only.patch"
+            "patches/xiaozhi-assets-lvgl-only.patch",
+            "patches/xiaozhi-obake-multinet-wake.patch"
         ]
     },
     {

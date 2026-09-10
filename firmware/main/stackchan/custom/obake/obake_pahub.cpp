@@ -20,6 +20,8 @@ const char* TAG = "obake_pahub";
 i2c_master_bus_handle_t s_bus = nullptr;
 SemaphoreHandle_t s_mutex = nullptr;
 bool s_ok = false;
+/** HUD 用: ok / bus / probe / -- */
+const char* s_status_tag = "--";
 
 /** 同一アドレスの add/remove 連打を避けるための小さなキャッシュ */
 struct DevCache {
@@ -92,6 +94,7 @@ bool probe_pahub_with_retries()
             vTaskDelay(pdMS_TO_TICKS(kPahubProbeGapMs));
         }
     }
+    s_status_tag = s_ok ? "ok" : "probe";
     return s_ok;
 }
 
@@ -126,6 +129,7 @@ bool PahubInit()
         ESP_LOGE(TAG, "i2c_new_master_bus failed: %s", esp_err_to_name(err));
         s_bus = nullptr;
         s_ok = false;
+        s_status_tag = "bus";
         return false;
     }
     vTaskDelay(pdMS_TO_TICKS(kPahubSettleMs));
@@ -147,11 +151,17 @@ void PahubDeinit()
         s_mutex = nullptr;
     }
     s_ok = false;
+    s_status_tag = "--";
 }
 
 bool PahubOk()
 {
     return s_ok;
+}
+
+const char* PahubStatusTag()
+{
+    return s_status_tag ? s_status_tag : "--";
 }
 
 bool PahubPortAInUse()

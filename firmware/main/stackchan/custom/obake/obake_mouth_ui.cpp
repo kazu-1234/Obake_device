@@ -106,7 +106,8 @@ void update_status_labels(int cm)
     if (!s_label_tl || !s_label_tr || !s_label_bl) {
         return;
     }
-    lv_label_set_text_fmt(s_label_tl, "%s\nP%s T%s L%s R%s", kObakeUiLabel, PahubOk() ? "ok" : "--",
+    // P=ok / bus / probe。T/L/R は従来どおり
+    lv_label_set_text_fmt(s_label_tl, "%s\nP%s T%s L%s R%s", kObakeUiLabel, PahubStatusTag(),
                           TofOk() ? "ok" : "--", EyesLeftOk() ? "ok" : "--", EyesRightOk() ? "ok" : "--");
     if (cm >= 0) {
         lv_label_set_text_fmt(s_label_tr, "%3d cm", cm);

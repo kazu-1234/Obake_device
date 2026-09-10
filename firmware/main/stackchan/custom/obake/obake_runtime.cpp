@@ -26,26 +26,18 @@ bool s_started = false;
 TaskHandle_t s_task = nullptr;
 std::atomic<bool> s_task_run{false};
 
+/** 起動直後のバス競合を避ける遅延 */
+constexpr uint32_t kHwStartDelayMs = 400;
+/** PaHub 未成功時の再試行間隔・回数 */
+constexpr uint32_t kPahubRetryMs = 2000;
+constexpr int kPahubRetryMax = 15;
+
 uint32_t now_ms()
 {
     return static_cast<uint32_t>(esp_timer_get_time() / 1000ULL);
 }
 
-void hw_task(void* /*arg*/)
-{
-    ESP_LOGI(TAG, "hw task start (wake display=%s)", kWakeDisplayName);
-    while (s_task_run.load(std::memory_order_relaxed)) {
-        const uint32_t t = now_ms();
-        EyesTick(t);
-        TofTick(t);
-        // 周期は kHwTickMs（閉眼最短より短く保つ）
-        vTaskDelay(pdMS_TO_TICKS(kHwTickMs));
-    }
-    s_task = nullptr;
-    vTaskDelete(nullptr);
-}
-
-/** PaHub → 目 → ToF。失敗時は一度だけ deinit して再試行 */
+/** PaHub → 目 → ToF */
 bool start_pahub_chain()
 {
     if (PahubInit()) {
@@ -53,33 +45,53 @@ bool start_pahub_chain()
         TofInit();
         return true;
     }
-    ESP_LOGW(TAG, "PaHub miss — retry once");
-    vTaskDelay(pdMS_TO_TICKS(120));
-    PahubDeinit();
-    if (PahubInit()) {
-        EyesInit();
-        TofInit();
-        return true;
-    }
-    ESP_LOGW(TAG, "PaHub missing — eyes/ToF skipped");
+    ESP_LOGW(TAG, "PaHub miss (tag=%s)", PahubStatusTag());
     return false;
+}
+
+void hw_task(void* /*arg*/)
+{
+    ESP_LOGI(TAG, "hw task start (wake=%s thr~%d%%)", kWakeDisplayName, kWakeThresholdPercentHint);
+    // EnterCustomSession 直後の即 init を避け、少し待ってから初回
+    vTaskDelay(pdMS_TO_TICKS(kHwStartDelayMs));
+    start_pahub_chain();
+
+    int retries_left = kPahubRetryMax;
+    uint32_t next_retry_ms = now_ms() + kPahubRetryMs;
+
+    while (s_task_run.load(std::memory_order_relaxed)) {
+        const uint32_t t = now_ms();
+        // 未検出なら周期的に deinit→再 init（配線・電源遅延対策）
+        if (!PahubOk() && retries_left > 0 && t >= next_retry_ms) {
+            ESP_LOGW(TAG, "PaHub retry (%d left)", retries_left);
+            EyesDeinit();
+            TofDeinit();
+            PahubDeinit();
+            if (start_pahub_chain()) {
+                retries_left = 0;
+            } else {
+                --retries_left;
+                next_retry_ms = t + kPahubRetryMs;
+            }
+        }
+        EyesTick(t);
+        TofTick(t);
+        vTaskDelay(pdMS_TO_TICKS(kHwTickMs));
+    }
+    s_task = nullptr;
+    vTaskDelete(nullptr);
 }
 
 }  // namespace
 
 void RuntimeStart()
 {
-    // HW 未起動ならバス・タスクを開始。口 UI は毎回試す（UI ready 後の再入用）
+    // HW タスクは1本。口 UI は UI ready 後の再入でも毎回試す
     if (!s_started) {
         s_started = true;
-        ESP_LOGI(TAG, "start Obake face HW (wake=%s thr~%d%%)", kWakeDisplayName, kWakeThresholdPercentHint);
-        start_pahub_chain();
+        ESP_LOGI(TAG, "start Obake face HW (deferred init)");
         s_task_run.store(true, std::memory_order_relaxed);
-        // Core 0: I2C。UI/LVGL は Core1 側が多いので分離
         xTaskCreatePinnedToCore(hw_task, "obake_hw", 8192, nullptr, 5, &s_task, 0);
-    } else if (!PahubOk()) {
-        // 起動済みだが PaHub 未検出なら再試行（配線遅延対策）
-        start_pahub_chain();
     }
     MouthUiCreate();
 }
@@ -108,8 +120,6 @@ void RuntimeStop()
     if (!s_started) {
         return;
     }
-    // I2C / hw タスクだけ止める。口 UI は CUSTOM セッション中ずっと残す
-    // （MouthUiDestroy すると標準目口が戻り、おばけ口が消えるため呼ばない）
     s_task_run.store(false, std::memory_order_relaxed);
     for (int i = 0; i < 50 && s_task != nullptr; ++i) {
         vTaskDelay(pdMS_TO_TICKS(20));
