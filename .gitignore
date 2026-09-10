@@ -1,0 +1,4 @@
+.env
+*.pem
+sdkconfig.defaults.local
+secrets.h
