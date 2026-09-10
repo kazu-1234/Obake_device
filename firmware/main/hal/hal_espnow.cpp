@@ -213,6 +213,9 @@ bool Hal::espNowSend(const std::vector<uint8_t>& data, const uint8_t* destAddr)
 
 #include <driver/gpio.h>
 
+// Port.A SDA=GPIO2。Obake PaHub 使用中判定（obake_pahub.cpp の C リンケージ）
+extern "C" bool stackchan_obake_pahub_port_a_in_use();
+
 void Hal::setLaserEnabled(bool enabled)
 {
     static bool laser_enabled = false;
@@ -224,8 +227,7 @@ void Hal::setLaserEnabled(bool enabled)
 
     const gpio_num_t laser_pin = GPIO_NUM_2;
 
-    // Port.A SDA=GPIO2。Obake PaHub 使用中はレーザーでピンを奪わない
-    extern bool stackchan_obake_pahub_port_a_in_use();
+    // Obake PaHub 使用中はレーザーでピンを奪わない
     if (stackchan_obake_pahub_port_a_in_use()) {
         mclog::tagInfo(_tag, "laser skip (Obake Port.A / GPIO2 in use)");
         return;

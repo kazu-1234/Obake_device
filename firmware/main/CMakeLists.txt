@@ -15,6 +15,8 @@ file(GLOB_RECURSE STACK_CHAN_SOURCES
     "stackchan/*.cc"
     "stackchan/*.cpp"
 )
+# SimpleVox はウェイク切替の途中で現行 esp-sr と未整合。顔 CUSTOM には不要なので当面除外
+list(FILTER STACK_CHAN_SOURCES EXCLUDE REGEX ".*/simplevox/.*")
 # v1.4.1.1+ — GLOB cache can miss new files until reconfigure; append if absent
 set(_stackchan_extra_sources
     "${CMAKE_CURRENT_SOURCE_DIR}/stackchan/addons/addon_servo_guard.cpp"
