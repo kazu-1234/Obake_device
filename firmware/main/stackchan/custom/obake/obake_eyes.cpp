@@ -1,5 +1,6 @@
 /*
  * 左右 OLED: 縦長黒楕円・閉眼∪/∩・SH1106 132列白埋め・ページ交互送信。
+ * まばたき／きょろきょろ／明るさは obake_config.h 先頭の定数のみ触る。
  */
 #include "obake_eyes.h"
 
@@ -7,6 +8,7 @@
 #include "obake_pahub.h"
 
 #include <atomic>
+#include <cmath>
 #include <esp_log.h>
 #include <esp_random.h>
 #include <esp_timer.h>
@@ -29,6 +31,16 @@ int s_look_x = 0;
 int s_look_y = 0;
 uint32_t s_blink_at = 0;
 uint32_t s_look_at = 0;
+uint32_t s_mouth_at = 0;
+
+/** Min + [0..Span] の乱数間隔（Span=0 なら Min 固定） */
+uint32_t rand_span_ms(uint32_t min_ms, uint32_t span_ms)
+{
+    if (span_ms == 0) {
+        return min_ms;
+    }
+    return min_ms + (esp_random() % (span_ms + 1));
+}
 
 bool oled_cmd(uint8_t addr, uint8_t cmd)
 {
@@ -38,9 +50,10 @@ bool oled_cmd(uint8_t addr, uint8_t cmd)
 
 bool oled_init(uint8_t addr)
 {
-    static const uint8_t kInit[] = {
+    // 0x81 の次が contrast（kOledContrast）。他は SH1106 定番シーケンス
+    const uint8_t kInit[] = {
         0xAE, 0xD5, 0xF0, 0xA8, 0x3F, 0xD3, 0x00, 0x40, 0x8D, 0x14, 0x20, 0x02,
-        0xA1, 0xC8, 0xDA, 0x12, 0x81, 0x5A, 0xD9, 0x22, 0xDB, 0x40, 0xA4, 0xA6, 0xAF,
+        0xA1, 0xC8, 0xDA, 0x12, 0x81, kOledContrast, 0xD9, 0x22, 0xDB, 0x40, 0xA4, 0xA6, 0xAF,
     };
     for (uint8_t c : kInit) {
         if (!oled_cmd(addr, c)) {
@@ -122,6 +135,7 @@ void set_pixel_portrait(uint8_t* buf, int x, int y, bool on)
     set_pixel(buf, px, py, on);
 }
 
+/** 走査線で楕円塗り（画素二重ループを避ける） */
 void fill_ellipse_portrait(uint8_t* buf, int cx, int cy, int rx, int ry, bool on)
 {
     if (rx <= 0 || ry <= 0) {
@@ -129,14 +143,16 @@ void fill_ellipse_portrait(uint8_t* buf, int cx, int cy, int rx, int ry, bool on
     }
     const long rx2 = static_cast<long>(rx) * rx;
     const long ry2 = static_cast<long>(ry) * ry;
-    const long r2 = rx2 * ry2;
     for (int y = -ry; y <= ry; ++y) {
-        const long yy = static_cast<long>(y) * y * rx2;
-        for (int x = -rx; x <= rx; ++x) {
-            const long xx = static_cast<long>(x) * x * ry2;
-            if (xx + yy <= r2) {
-                set_pixel_portrait(buf, cx + x, cy + y, on);
-            }
+        const long yy = static_cast<long>(y) * y;
+        // rx^2 * (1 - y^2/ry^2) の平方根 → その行の半幅
+        const long numer = rx2 * (ry2 - yy);
+        if (numer < 0) {
+            continue;
+        }
+        const int x_span = static_cast<int>(std::lround(std::sqrt(static_cast<double>(numer) / static_cast<double>(ry2))));
+        for (int x = -x_span; x <= x_span; ++x) {
+            set_pixel_portrait(buf, cx + x, cy + y, on);
         }
     }
 }
@@ -159,32 +175,28 @@ void render_eye(uint8_t* buf, bool open, int look_x, int look_y, bool smile)
     }
 }
 
+/** 左右同一絵なので1バッファを描画し、送信だけ両目へ */
 void show_eyes(bool open)
 {
     const bool smile = s_mouth_smile.load(std::memory_order_relaxed);
-    uint8_t left_buf[1024];
-    uint8_t right_buf[1024];
-    if (s_left_ok) {
-        render_eye(left_buf, open, s_look_x, s_look_y, smile);
-    }
-    if (s_right_ok) {
-        render_eye(right_buf, open, s_look_x, s_look_y, smile);
-    }
+    uint8_t buf[1024];
+    render_eye(buf, open, s_look_x, s_look_y, smile);
     // PaHub は同時不可。ページごとに左右連続で送り、ズレを抑える
     for (int page = 0; page < 8; ++page) {
         if (s_left_ok && PahubSelect(kChLeft)) {
-            oled_send_page(s_left_addr, left_buf, page);
+            oled_send_page(s_left_addr, buf, page);
         }
         if (s_right_ok && PahubSelect(kChRight)) {
-            oled_send_page(s_right_addr, right_buf, page);
+            oled_send_page(s_right_addr, buf, page);
         }
     }
 }
 
 void pick_look()
 {
-    s_look_x = static_cast<int>(esp_random() % 15) - 7;
-    s_look_y = static_cast<int>(esp_random() % 21) - 10;
+    // RangeR → オフセットは -Range .. +Range
+    s_look_x = static_cast<int>(esp_random() % static_cast<uint32_t>(2 * kLookRangeX + 1)) - kLookRangeX;
+    s_look_y = static_cast<int>(esp_random() % static_cast<uint32_t>(2 * kLookRangeY + 1)) - kLookRangeY;
 }
 
 void pick_mouth()
@@ -217,8 +229,9 @@ bool EyesInit()
     s_eyes_open = true;
     show_eyes(true);
     const uint32_t now = static_cast<uint32_t>(esp_timer_get_time() / 1000ULL);
-    s_blink_at = now + 2500;
-    s_look_at = now + 400 + (esp_random() % 1400);
+    s_blink_at = now + kBlinkFirstDelayMs;
+    s_look_at = now + rand_span_ms(kLookMinMs, kLookSpanMs);
+    s_mouth_at = now + rand_span_ms(kMouthFlipMinMs, kMouthFlipSpanMs);
     PahubUnlock();
     return s_left_ok || s_right_ok;
 }
@@ -249,29 +262,39 @@ void EyesTick(uint32_t now_ms)
     if (!s_left_ok && !s_right_ok) {
         return;
     }
-    PahubLock();
     bool dirty = false;
+    // 口切替は I2C 不要（atomic だけ）。閉眼中は目の ∪/∩ も口に合わせるので dirty
+    if (now_ms >= s_mouth_at) {
+        pick_mouth();
+        s_mouth_at = now_ms + rand_span_ms(kMouthFlipMinMs, kMouthFlipSpanMs);
+        if (!s_eyes_open) {
+            dirty = true;
+        }
+    }
+
     if (now_ms >= s_look_at && s_eyes_open) {
         pick_look();
-        pick_mouth();
         dirty = true;
-        s_look_at = now_ms + 400 + (esp_random() % 1400);
+        s_look_at = now_ms + rand_span_ms(kLookMinMs, kLookSpanMs);
     }
     if (now_ms >= s_blink_at) {
         if (s_eyes_open) {
             s_eyes_open = false;
             dirty = true;
-            s_blink_at = now_ms + 90 + (esp_random() % 80);
+            s_blink_at = now_ms + rand_span_ms(kBlinkClosedMinMs, kBlinkClosedSpanMs);
         } else {
             s_eyes_open = true;
             dirty = true;
-            s_blink_at = now_ms + 1800 + (esp_random() % 2200);
-            s_look_at = now_ms + 200;
+            s_blink_at = now_ms + rand_span_ms(kBlinkOpenMinMs, kBlinkOpenSpanMs);
+            s_look_at = now_ms + kLookAfterBlinkMs;
         }
     }
-    if (dirty) {
-        show_eyes(s_eyes_open);
+    // タイマー未発火ならバスを取らない（ToF との競合を減らす）
+    if (!dirty) {
+        return;
     }
+    PahubLock();
+    show_eyes(s_eyes_open);
     PahubUnlock();
 }
 

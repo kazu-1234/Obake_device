@@ -12,9 +12,12 @@
 #include <stackchan/avatar/skins/default/default.h>
 #include <stackchan/stackchan.h>
 
+#include <cmath>
 #include <esp_heap_caps.h>
 #include <esp_log.h>
+#include <esp_timer.h>
 #include <lvgl.h>
+#include <string.h>
 
 namespace stackchan::obake {
 namespace {
@@ -32,7 +35,15 @@ lv_obj_t* s_label_bl = nullptr;
 uint16_t* s_buf = nullptr;
 int s_drawn_cm = -2;
 bool s_drawn_smile = false;
+/** 標準顔・吹き出しの保険隠しを間引くための次回時刻 (ms) */
+uint32_t s_next_hide_ms = 0;
 
+uint32_t now_ms()
+{
+    return static_cast<uint32_t>(esp_timer_get_time() / 1000ULL);
+}
+
+/** 走査線で楕円塗り（画素二重ループを避ける） */
 void fill_ellipse(uint16_t* buf, int cx, int cy, int rx, int ry, uint16_t color)
 {
     if (rx <= 0 || ry <= 0) {
@@ -40,22 +51,31 @@ void fill_ellipse(uint16_t* buf, int cx, int cy, int rx, int ry, uint16_t color)
     }
     const long rx2 = static_cast<long>(rx) * rx;
     const long ry2 = static_cast<long>(ry) * ry;
-    const long r2 = rx2 * ry2;
     for (int y = -ry; y <= ry; ++y) {
         const int py = cy + y;
         if (py < 0 || py >= kH) {
             continue;
         }
-        const long yy = static_cast<long>(y) * y * rx2;
-        for (int x = -rx; x <= rx; ++x) {
-            const int px = cx + x;
-            if (px < 0 || px >= kW) {
-                continue;
-            }
-            const long xx = static_cast<long>(x) * x * ry2;
-            if (xx + yy <= r2) {
-                buf[py * kW + px] = color;
-            }
+        const long yy = static_cast<long>(y) * y;
+        const long numer = rx2 * (ry2 - yy);
+        if (numer < 0) {
+            continue;
+        }
+        const int x_span = static_cast<int>(std::lround(std::sqrt(static_cast<double>(numer) / static_cast<double>(ry2))));
+        int x0 = cx - x_span;
+        int x1 = cx + x_span;
+        if (x1 < 0 || x0 >= kW) {
+            continue;
+        }
+        if (x0 < 0) {
+            x0 = 0;
+        }
+        if (x1 >= kW) {
+            x1 = kW - 1;
+        }
+        uint16_t* row = buf + py * kW;
+        for (int x = x0; x <= x1; ++x) {
+            row[x] = color;
         }
     }
 }
@@ -65,9 +85,8 @@ void paint_mouth(bool smile)
     if (!s_buf || !s_canvas) {
         return;
     }
-    for (int i = 0; i < kW * kH; ++i) {
-        s_buf[i] = kWhite;
-    }
+    // RGB565 は 2 バイト/画素。0xFFFF 白を一括で埋める
+    memset(s_buf, 0xFF, static_cast<size_t>(kW) * kH * sizeof(uint16_t));
     const int cx = kW / 2;
     const int cy = kH / 2 + 16;
     const int rx = 70;
@@ -109,7 +128,7 @@ void set_default_face_hidden(bool hide)
     stackchan.avatar().mouth().setVisible(!hide);
 }
 
-/** 吹き出しは不要。毎フレーム消す（SetStatus で再表示されても隠す） */
+/** 吹き出しは不要。SetStatus で再表示されても隠す */
 void hide_speech_bubble()
 {
     auto& stackchan = GetStackChan();
@@ -120,6 +139,14 @@ void hide_speech_bubble()
     if (auto* bubble = stackchan.avatar().getKeyElements().speechBubble.get()) {
         bubble->setVisible(false);
     }
+}
+
+/** 標準顔・吹き出しを隠し直す（毎フレームはやらず保険間隔のみ） */
+void ensure_obake_overlay()
+{
+    set_default_face_hidden(true);
+    hide_speech_bubble();
+    s_next_hide_ms = now_ms() + kMouthHideRetryMs;
 }
 
 lv_obj_t* make_label(lv_obj_t* parent, lv_align_t align, int x, int y)
@@ -139,8 +166,7 @@ void MouthUiCreate()
 {
     // 再 Start 時も標準目口が被らないよう、既存キャンバスなら隠し直しだけする
     if (s_canvas) {
-        set_default_face_hidden(true);
-        hide_speech_bubble();
+        ensure_obake_overlay();
         return;
     }
     auto& stackchan = GetStackChan();
@@ -154,8 +180,7 @@ void MouthUiCreate()
         return;
     }
 
-    set_default_face_hidden(true);
-    hide_speech_bubble();
+    ensure_obake_overlay();
     def->getPanel()->setBgColor(lv_color_white());
 
     lv_obj_t* parent = def->getPanel()->get();
@@ -220,6 +245,7 @@ void MouthUiDestroy()
     }
     // set_default_face_hidden(false) はしない — パネルは白のまま
     s_drawn_cm = -2;
+    s_next_hide_ms = 0;
 }
 
 void MouthUiUpdate()
@@ -227,9 +253,10 @@ void MouthUiUpdate()
     if (!s_canvas || !s_buf) {
         return;
     }
-    // 標準顔が何かで再表示されても口を優先（毎フレーム隠し直し）
-    set_default_face_hidden(true);
-    hide_speech_bubble();
+    // 毎フレームの avatar 操作は重いので、保険間隔だけ隠し直す
+    if (now_ms() >= s_next_hide_ms) {
+        ensure_obake_overlay();
+    }
     const bool smile = EyesMouthSmile();
     const int cm = TofLastCm();
     if (smile != s_drawn_smile) {

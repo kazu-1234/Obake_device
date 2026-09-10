@@ -12,7 +12,7 @@ void EyesDeinit();
 bool EyesLeftOk();
 bool EyesRightOk();
 
-/** まばたき・きょろきょろ（内部でバス Lock） */
+/** まばたき・きょろきょろ。描画が必要なときだけバス Lock */
 void EyesTick(uint32_t now_ms);
 
 /** 口の ∪/∩ と同期（true=∪笑い）。UI スレッドから読んでよい */

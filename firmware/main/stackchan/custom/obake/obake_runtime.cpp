@@ -3,6 +3,7 @@
  */
 #include "obake_runtime.h"
 
+#include "obake_config.h"
 #include "obake_eyes.h"
 #include "obake_mouth_ui.h"
 #include "obake_pahub.h"
@@ -37,7 +38,8 @@ void hw_task(void* /*arg*/)
         const uint32_t t = now_ms();
         EyesTick(t);
         TofTick(t);
-        vTaskDelay(pdMS_TO_TICKS(40));
+        // 周期は kHwTickMs（閉眼最短より短く保つ）
+        vTaskDelay(pdMS_TO_TICKS(kHwTickMs));
     }
     s_task = nullptr;
     vTaskDelete(nullptr);

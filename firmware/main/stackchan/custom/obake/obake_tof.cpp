@@ -92,13 +92,14 @@ void TofTick(uint32_t now_ms)
     const bool timed_out = s_tof.timeoutOccurred();
     PahubUnlock();
 
+    // 画面の cm は MouthUi 側。シリアルはデバッグ時だけ（毎秒 LOGI は重い）
     if (timed_out || mm > kTofMaxMm) {
         s_last_cm.store(-1, std::memory_order_relaxed);
-        ESP_LOGI(TAG, "ALT_CM=----");
+        ESP_LOGD(TAG, "ALT_CM=----");
     } else {
         const int cm = static_cast<int>((mm + 5) / 10);
         s_last_cm.store(cm, std::memory_order_relaxed);
-        ESP_LOGI(TAG, "ALT_CM=%d", cm);
+        ESP_LOGD(TAG, "ALT_CM=%d", cm);
     }
 }
 
