@@ -1,21 +1,63 @@
 /*
- * Obake_device firmware v0.3.1
- * 対象: M5Stack CoreS3（ESP32-S3）。ESP-IDF のみ。
- * 会話の本線は Stack-chan と同じ xiaozhi-esp32（WebSocket + Opus）。
- * このファイルは土台。Xiaozhi の Application::Run() は次でつなぐ。
+ * SPDX-FileCopyrightText: 2026 M5Stack Technology CO LTD
+ *
+ * SPDX-License-Identifier: MIT
  */
-#include "esp_log.h"
-#include "freertos/FreeRTOS.h"
-#include "freertos/task.h"
+#include <smooth_ui_toolkit.hpp>
+#include <uitk/short_namespace.hpp>
+#include <mooncake_log.h>
+#include <mooncake.h>
+#include <apps/apps.h>
+#include <hal/hal.h>
 
-static const char* TAG = "obake";
+using namespace mooncake;
+using namespace smooth_ui_toolkit;
 
-extern "C" void app_main(void) {
-    ESP_LOGI(TAG, "Obake v%s (ESP-IDF / CoreS3)", FIRMWARE_VERSION);
-    ESP_LOGI(TAG, "Voice path: Xiaozhi like Stack-chan");
-    ESP_LOGI(TAG, "Grove eyes / ToF / Catch: port after Xiaozhi boots");
+extern "C" void app_main(void)
+{
+    // Setup logger
+    mclog::set_level(mclog::level_info);
+    mclog::set_time_format(mclog::time_format_unix_milliseconds);
 
-    while (true) {
-        vTaskDelay(pdMS_TO_TICKS(1000));
+    // HAL init
+    GetHAL().init();
+
+    // Setup ui hal
+    ui_hal::on_delay([](uint32_t ms) { GetHAL().delay(ms); });
+    ui_hal::on_get_tick([]() { return GetHAL().millis(); });
+
+    const bool skip_mooncake =
+        GetHAL().getXiaozhiConfig().startAiAgentOnBoot && GetHAL().getWarmRebootTarget() < 0;
+
+    if (!skip_mooncake) {
+        // Install apps
+        GetMooncake().installApp(std::make_unique<AppLauncher>());
+        GetMooncake().installApp(std::make_unique<AppCustom>());
+        GetMooncake().installApp(std::make_unique<AppAiAgent>());
+        GetMooncake().installApp(std::make_unique<AppAvatar>());
+        GetMooncake().installApp(std::make_unique<AppEspnowControl>());
+        GetMooncake().installApp(std::make_unique<AppAppCenter>());
+        GetMooncake().installApp(std::make_unique<AppEzdata>());
+        GetMooncake().installApp(std::make_unique<AppDance>());
+        GetMooncake().installApp(std::make_unique<AppSetup>());
+
+        // Main loop
+        while (1) {
+            GetHAL().feedTheDog();
+            GetHAL().updateHeapStatusLog();
+
+            GetMooncake().update();
+
+            if (GetHAL().isXiaozhiStartRequested()) {
+                break;
+            }
+        }
+
+        // Uninstall all apps and destroy mooncake
+        GetMooncake().uninstallAllApps();
+        DestroyMooncake();
     }
+
+    // Start xiaozhi, never returns
+    GetHAL().startXiaozhi();
 }

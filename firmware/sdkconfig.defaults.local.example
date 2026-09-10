@@ -1,2 +1,0 @@
-# コピーして sdkconfig.defaults.local にする。git に入れない。
-# CONFIG_OTA_URL="http://127.0.0.1:8003/xiaozhi/ota/"

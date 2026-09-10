@@ -7,9 +7,9 @@ alwaysApply: true
 
 脳は **Stack-chan CoreS3**。カメラ・マイク・スピーカもそれ。旧案（専用 CoreS3・Unit LCD・ToF4M）に戻さない。
 
-本番ファームは **ESP-IDF（Stack-chan と同じ手順）**。`arduino/obake_pahub_bringup` はハード確認のみ。書く前は Flash バックアップ。
+管理は **Obake_device リポのみ**。本番は `firmware/`（ESP-IDF・Stack-chan ベース）。`arduino/obake_pahub_bringup` はハード確認のみ。書く前は Flash バックアップ。
 
-CUSTOM セッションで **口・左右の目・ToF 距離** を必須表示（`stackchan/custom/obake/`）。通常 AI.AGENT は従来どおり。
+CUSTOM セッションで **口・左右の目・ToF 距離** を必須表示（`firmware/main/stackchan/custom/obake/`）。通常 AI.AGENT は従来どおり。
 
 ## ハード
 

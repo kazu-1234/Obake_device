@@ -4,9 +4,16 @@
 
 参考図: [reference/content.png](reference/content.png)
 
-表示版: v0.5.0
+表示版: v0.5.1
 
-別 PC へ移すときは [引き継ぎ.md](引き継ぎ.md) を先に読む。次段階は **Stack-chan ファーム＋ESP-IDF**（Arduino 確認用は本番ではない）。
+管理リポは **この `Obake_device` のみ**。中で用途ごとに分ける:
+
+| パス | 用途 |
+|------|------|
+| [`firmware/`](firmware/) | 本番 ESP-IDF（Stack-chan ベース・独自改造） |
+| [`arduino/obake_pahub_bringup/`](arduino/obake_pahub_bringup/) | ハード確認のみ（本番ではない） |
+
+別 PC へ移すときは [引き継ぎ.md](引き継ぎ.md) を先に読む。
 
 当面の脳は **Stack-chan の CoreS3**。カメラ・マイク・スピーカも Stack-chan。会話は当面 Xiaozhi（あとで独自に差し替え）。液晶は口。  
 免責: 個人の製作・ハッカソン用途。部品・配線の焼損や落下の責任は負わない。
@@ -61,7 +68,7 @@ Grove（HY2.0、ピッチ 2.0 mm）と 1インチ OLED（ピンヘッダ 2.54 mm
 
 ## 書き込み
 
-本番: Stack-chan と同じ **ESP-IDF**（[引き継ぎ.md](引き継ぎ.md) 7・8 節）。  
+本番: [`firmware/`](firmware/) を **ESP-IDF** で build / flash（[引き継ぎ.md](引き継ぎ.md) 7 節）。  
 Flash の退避と戻し: [バックアップと戻し方.md](バックアップと戻し方.md)  
 ハード確認用 Arduino のみ: [arduino/obake_pahub_bringup/FLASH.md](arduino/obake_pahub_bringup/FLASH.md)
 
