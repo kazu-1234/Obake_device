@@ -141,11 +141,15 @@ void hide_speech_bubble()
     }
 }
 
-/** 標準顔・吹き出しを隠し直す（毎フレームはやらず保険間隔のみ） */
+/** 標準顔・吹き出しを隠し直し、接続状況ラベルも更新する */
 void ensure_obake_overlay()
 {
     set_default_face_hidden(true);
     hide_speech_bubble();
+    // P/T/L/R・cm は継続表示。HW 状態変化を画面に反映する
+    const int cm = TofLastCm();
+    update_status_labels(cm);
+    s_drawn_cm = cm;
     s_next_hide_ms = now_ms() + kMouthHideRetryMs;
 }
 
@@ -164,7 +168,7 @@ lv_obj_t* make_label(lv_obj_t* parent, lv_align_t align, int x, int y)
 
 void MouthUiCreate()
 {
-    // 再 Start 時も標準目口が被らないよう、既存キャンバスなら隠し直しだけする
+    // 再 Start 時も標準目口が被らないよう、既存キャンバスなら隠し直し＋状態更新
     if (s_canvas) {
         ensure_obake_overlay();
         return;

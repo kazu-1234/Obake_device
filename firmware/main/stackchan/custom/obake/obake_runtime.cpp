@@ -45,28 +45,43 @@ void hw_task(void* /*arg*/)
     vTaskDelete(nullptr);
 }
 
+/** PaHub → 目 → ToF。失敗時は一度だけ deinit して再試行 */
+bool start_pahub_chain()
+{
+    if (PahubInit()) {
+        EyesInit();
+        TofInit();
+        return true;
+    }
+    ESP_LOGW(TAG, "PaHub miss — retry once");
+    vTaskDelay(pdMS_TO_TICKS(120));
+    PahubDeinit();
+    if (PahubInit()) {
+        EyesInit();
+        TofInit();
+        return true;
+    }
+    ESP_LOGW(TAG, "PaHub missing — eyes/ToF skipped");
+    return false;
+}
+
 }  // namespace
 
 void RuntimeStart()
 {
-    if (s_started) {
-        return;
+    // HW 未起動ならバス・タスクを開始。口 UI は毎回試す（UI ready 後の再入用）
+    if (!s_started) {
+        s_started = true;
+        ESP_LOGI(TAG, "start Obake face HW (wake=%s thr~%d%%)", kWakeDisplayName, kWakeThresholdPercentHint);
+        start_pahub_chain();
+        s_task_run.store(true, std::memory_order_relaxed);
+        // Core 0: I2C。UI/LVGL は Core1 側が多いので分離
+        xTaskCreatePinnedToCore(hw_task, "obake_hw", 8192, nullptr, 5, &s_task, 0);
+    } else if (!PahubOk()) {
+        // 起動済みだが PaHub 未検出なら再試行（配線遅延対策）
+        start_pahub_chain();
     }
-    s_started = true;
-    ESP_LOGI(TAG, "start Obake face HW");
-
-    if (PahubInit()) {
-        EyesInit();
-        TofInit();
-    } else {
-        ESP_LOGW(TAG, "PaHub missing — eyes/ToF skipped");
-    }
-
     MouthUiCreate();
-
-    s_task_run.store(true, std::memory_order_relaxed);
-    // Core 0: I2C。UI/LVGL は Core1 側が多いので分離
-    xTaskCreatePinnedToCore(hw_task, "obake_hw", 8192, nullptr, 5, &s_task, 0);
 }
 
 void RuntimeOnUiFrame()

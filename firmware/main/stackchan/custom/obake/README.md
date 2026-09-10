@@ -41,4 +41,6 @@ Port.A → PaHub の両目 OLED・ToF と、CoreS3 口 UI。サーボは扱わ�
 | ToF 表示の更新間隔 | `kTofUpdateMs` | 既定 1000 ms |
 | hw ポーリング周期 | `kHwTickMs` | 既定 40（閉眼最短より短く） |
 
+呼びかけ「おばけちゃん」の検知感度は `sdkconfig.defaults.local` の `CONFIG_CUSTOM_WAKE_WORD_THRESHOLD`（既定 **5**。小さいほど敏感）。拼音・表示名のメモは `obake_wake_config.h`。
+
 ハード配線（GPIO・PaHub CH・I2C アドレス）は同ファイル後半。普段は触らない。

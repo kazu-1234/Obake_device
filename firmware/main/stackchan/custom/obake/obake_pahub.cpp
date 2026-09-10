@@ -5,6 +5,7 @@
 
 #include "obake_config.h"
 
+#include <driver/gpio.h>
 #include <driver/i2c_master.h>
 #include <esp_log.h>
 #include <esp_rom_sys.h>
@@ -26,6 +27,11 @@ struct DevCache {
     i2c_master_dev_handle_t handle = nullptr;
 };
 DevCache s_devs[4] = {};
+
+/** PaHub probe 回数・間隔（配線・電源立ち上がり待ち） */
+constexpr int kPahubProbeTries = 8;
+constexpr uint32_t kPahubSettleMs = 100;
+constexpr uint32_t kPahubProbeGapMs = 40;
 
 i2c_master_dev_handle_t get_dev(uint8_t addr)
 {
@@ -69,14 +75,45 @@ void clear_devs()
     }
 }
 
+/** レーザー等で GPIO が OUTPUT 化されたあとに I2C を取れるようリセット */
+void reset_port_a_pins()
+{
+    gpio_reset_pin(kPortASda);
+    gpio_reset_pin(kPortAScl);
+}
+
+bool probe_pahub_with_retries()
+{
+    s_ok = false;
+    for (int try_i = 0; try_i < kPahubProbeTries && !s_ok; ++try_i) {
+        s_ok = PahubProbe(kPahubAddr);
+        if (!s_ok) {
+            ESP_LOGW(TAG, "PaHub 0x%02X probe miss (%d/%d)", kPahubAddr, try_i + 1, kPahubProbeTries);
+            vTaskDelay(pdMS_TO_TICKS(kPahubProbeGapMs));
+        }
+    }
+    return s_ok;
+}
+
 }  // namespace
 
 bool PahubInit()
 {
+    // バスはあるが probe 失敗のまま固まるのを防ぎ、再 probe する
     if (s_bus) {
+        if (s_ok) {
+            return true;
+        }
+        ESP_LOGW(TAG, "PaHub bus up but not ok — re-probe");
+        probe_pahub_with_retries();
+        ESP_LOGI(TAG, "PaHub 0x%02X %s (re-probe)", kPahubAddr, s_ok ? "ok" : "missing");
         return s_ok;
     }
-    s_mutex = xSemaphoreCreateMutex();
+    if (!s_mutex) {
+        s_mutex = xSemaphoreCreateMutex();
+    }
+    // GPIO2 がレーザー OUTPUT だと new_master_bus が失敗しやすい
+    reset_port_a_pins();
     i2c_master_bus_config_t bus_cfg = {};
     bus_cfg.i2c_port = static_cast<i2c_port_t>(kPortAI2cPort);
     bus_cfg.sda_io_num = kPortASda;
@@ -87,19 +124,12 @@ bool PahubInit()
     esp_err_t err = i2c_new_master_bus(&bus_cfg, &s_bus);
     if (err != ESP_OK) {
         ESP_LOGE(TAG, "i2c_new_master_bus failed: %s", esp_err_to_name(err));
+        s_bus = nullptr;
         s_ok = false;
         return false;
     }
-    // bringup と同様、バス安定後に PaHub を探る
-    vTaskDelay(pdMS_TO_TICKS(50));
-    s_ok = false;
-    for (int try_i = 0; try_i < 5 && !s_ok; ++try_i) {
-        s_ok = PahubProbe(kPahubAddr);
-        if (!s_ok) {
-            ESP_LOGW(TAG, "PaHub 0x%02X probe miss (%d/5)", kPahubAddr, try_i + 1);
-            vTaskDelay(pdMS_TO_TICKS(30));
-        }
-    }
+    vTaskDelay(pdMS_TO_TICKS(kPahubSettleMs));
+    probe_pahub_with_retries();
     ESP_LOGI(TAG, "PaHub 0x%02X %s (SDA=GPIO%d SCL=GPIO%d port=%d)", kPahubAddr, s_ok ? "ok" : "missing",
              static_cast<int>(kPortASda), static_cast<int>(kPortAScl), kPortAI2cPort);
     return s_ok;

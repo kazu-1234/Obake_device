@@ -128,6 +128,10 @@ void EnterCustomSession()
 {
     s_custom_session = true;
     mclog::tagInfo(_tag, "custom session on");
+#if CONFIG_SC_CUSTOM_LAYER
+    // UI ready が先に終わっていても HW を起動（OnXiaozhiUiReady は一度きりのため）
+    stackchan::obake::RuntimeStart();
+#endif
 }
 
 void LeaveCustomSession()

@@ -39,4 +39,6 @@ void AppCustom::onRunning() {}
 void AppCustom::onClose()
 {
     mclog::tagInfo(getAppInfo().name, "on close");
+    // CUSTOM を離れたら HW を止め、次回 onOpen で再起動できるようにする
+    stackchan::custom::LeaveCustomSession();
 }
