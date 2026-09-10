@@ -13,7 +13,8 @@
 | [`firmware/`](firmware/) | 本番 ESP-IDF（Stack-chan ベース・独自改造） |
 | [`arduino/obake_pahub_bringup/`](arduino/obake_pahub_bringup/) | ハード確認のみ（本番ではない） |
 
-別 PC へ移すときは [引き継ぎ.md](引き継ぎ.md) を先に読む。
+別 PC へ移すときは [引き継ぎ.md](引き継ぎ.md) を先に読む。  
+**更新のたびにこのリポへ commit & push**（詳細は引き継ぎ §0）。
 
 当面の脳は **Stack-chan の CoreS3**。カメラ・マイク・スピーカも Stack-chan。会話は当面 Xiaozhi（あとで独自に差し替え）。液晶は口。  
 免責: 個人の製作・ハッカソン用途。部品・配線の焼損や落下の責任は負わない。
