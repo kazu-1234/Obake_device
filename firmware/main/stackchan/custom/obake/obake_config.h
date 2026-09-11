@@ -47,6 +47,45 @@ inline constexpr uint32_t kTofUpdateMs = 1000;
 inline constexpr uint32_t kMouthHideRetryMs = 500;
 
 // =============================================================================
+// デバッグ用スイッチ（数値だけ変える）
+// =============================================================================
+
+/**
+ * 起動後に CUSTOM を自動オープンするか。
+ * 0 = 手動（ランチャーでタップ）
+ * 1 = 自動（エージェント検証向け。既定 ON）
+ */
+inline constexpr int kObakeAutoCustom = 1;
+
+// =============================================================================
+// Media WebSocket（端末=クライアント → PC/homelab サーバ）
+// Windows hosts は PC ブラウザ専用。ESP は下記 LAN マップ（または LAN DNS）で解決する。
+// =============================================================================
+
+/** ログ・URL 表示用ホスト名（接続先の論理名） */
+inline constexpr const char* kMediaWsHost = "obake.media.stackchan";
+/**
+ * ESP 用 A レコード相当（ファーム内蔵マップ）。
+ * 空 "" なら OS DNS のみ。ルータ DNS が無い検証では PC の Wi-Fi IPv4 を入れる。
+ * PC の IP が変わったらここと hosts / dns_responder を更新する。
+ */
+inline constexpr const char* kMediaWsLanIp = "172.16.0.66";
+/** サーバ待ち受けポート（homelab/obake_media/server.py と一致） */
+inline constexpr int kMediaWsPort = 8030;
+/** WebSocket パス */
+inline constexpr const char* kMediaWsPath = "/obake/media";
+
+/** JPEG 品質・送信間隔 */
+inline constexpr int kMediaJpegQuality = 20;
+inline constexpr uint32_t kMediaJpegIntervalMs = 400;
+/** PCM 送信間隔（マイクは Xiaozhi と共有のため JPEG より疎でよい） */
+inline constexpr uint32_t kMediaPcmIntervalMs = 200;
+/** この時間 JPEG 送信成功が無いと WS 再接続（カメラ待ち固まり対策） */
+inline constexpr uint32_t kMediaJpegStallMs = 8000;
+/** 再接続間隔 */
+inline constexpr uint32_t kMediaReconnectMs = 5000;
+
+// =============================================================================
 // ハード定数（配線・アドレス。普段は触らない）
 // =============================================================================
 

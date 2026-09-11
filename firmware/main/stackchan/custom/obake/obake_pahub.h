@@ -11,7 +11,7 @@ namespace stackchan::obake {
 bool PahubInit();
 void PahubDeinit();
 bool PahubOk();
-/** 失敗理由の短い語（"ok" / "bus" / "probe" / "--"）。HUD 用 */
+/** 失敗理由の短い語（"ok" / "bus" / "probe" / "pwr" / "--"）。HUD 用 */
 const char* PahubStatusTag();
 
 /** Port.A（GPIO2 SDA）使用中。ESP-NOW レーザーとの競合防止用 */

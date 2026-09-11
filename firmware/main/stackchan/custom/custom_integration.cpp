@@ -9,6 +9,7 @@
 
 #if CONFIG_SC_CUSTOM_LAYER
 #include "obake/obake_runtime.h"
+#include "obake/obake_robot_ws.h"
 #endif
 
 #if CONFIG_SC_CUSTOM_LAYER
@@ -43,6 +44,7 @@
 #include <stackchan/ir/ir_catalog.h>
 #endif
 
+#include <hal/hal.h>
 #include <lvgl.h>
 #include <mcp_server.h>
 #include <mooncake_log.h>
@@ -129,8 +131,11 @@ void EnterCustomSession()
     s_custom_session = true;
     mclog::tagInfo(_tag, "custom session on");
 #if CONFIG_SC_CUSTOM_LAYER
+    // GPIO2 をレーザーから解放してから PaHub I2C を開始（.ino の Ex_I2C 相当）
+    GetHAL().setLaserEnabled(false);
     // UI ready が先に終わっていても HW を起動（OnXiaozhiUiReady は一度きりのため）
     stackchan::obake::RuntimeStart();
+    // Media WS は Xiaozhi/Wi-Fi 準備後のみ（ここで始めると再起動する）
 #endif
 }
 
@@ -138,6 +143,7 @@ void LeaveCustomSession()
 {
     s_custom_session = false;
 #if CONFIG_SC_CUSTOM_LAYER
+    stackchan::obake::RobotWsStop();
     stackchan::obake::RuntimeStop();
 #endif
 }
@@ -152,6 +158,7 @@ void OnHalInit()
     s_custom_session         = false;
     s_custom_runtime_started = false;
 #if CONFIG_SC_CUSTOM_LAYER
+    stackchan::obake::RobotWsStop();
     // 再 init 時は PaHub/目/ToF の hw だけ止める（口 UI は破棄しない）
     stackchan::obake::RuntimeStop();
     stackchan::features::InitFeatureSettings();
@@ -169,6 +176,7 @@ void OnXiaozhiUiReady()
     StartCustomRuntime();
     // CUSTOM 時のみおばけ顔（両目・ToF・口）を起動
     stackchan::obake::RuntimeStart();
+    stackchan::obake::RobotWsStart();
 #if CONFIG_SC_CUSTOM_ADDONS
     stackchan::addons::create_addon_panel(lv_screen_active());
 #endif
@@ -200,6 +208,7 @@ void OnStackChanPreUpdate()
         return;
     }
     stackchan::obake::RuntimeOnPreUpdate();
+    stackchan::obake::RobotWsOnPreUpdate();
 #if CONFIG_SC_CUSTOM_ADDONS
     stackchan::addons::update_addon_panel_gesture();
     const bool addons_ui_active = stackchan::addons::is_addon_ui_modal_active();
@@ -264,7 +273,7 @@ void RegisterMcpTools(McpServer& mcp_server)
 bool ShouldHoldMotion()
 {
 #if CONFIG_SC_CUSTOM_LAYER && CONFIG_SC_CUSTOM_ADDONS
-    // addon_servo_guard の kForceAllServosOff / NVS hold に従う（当面は常に hold）
+    // addon_servo_guard: 自動系は hold/modifyLock、サーバ指令は BeginUserDirectedMotion で通す
     return stackchan::addons::ShouldHoldMotion();
 #else
     return false;

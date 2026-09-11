@@ -7,6 +7,8 @@
 #include <hal/hal.h>
 #include <mooncake.h>
 #include <mooncake_log.h>
+#include <sdkconfig.h>
+#include <stackchan/custom/obake/obake_config.h>
 #include <stackchan/stackchan.h>
 #include <cstdint>
 
@@ -75,6 +77,24 @@ void AppLauncher::create_launcher_view()
         mclog::tagInfo(getAppInfo().name, "handle open app, app id: {}", appID);
         openApp(appID);
     };
+
+#if CONFIG_SC_CUSTOM_LAYER
+    // kObakeAutoCustom!=0 のときだけ CUSTOM を自動起動（0=手動タップ）
+    if (stackchan::obake::kObakeAutoCustom != 0) {
+        static bool s_obake_custom_autostart_done = false;
+        if (!s_obake_custom_autostart_done) {
+            s_obake_custom_autostart_done = true;
+            for (const auto& props : getAppProps()) {
+                if (props.info.name == "CUSTOM") {
+                    mclog::tagInfo(getAppInfo().name, "Obake autostart CUSTOM id={} (kObakeAutoCustom={})",
+                                   props.appID, stackchan::obake::kObakeAutoCustom);
+                    openApp(props.appID);
+                    break;
+                }
+            }
+        }
+    }
+#endif
 }
 
 void AppLauncher::screensaver_update()

@@ -16,8 +16,8 @@ namespace stackchan::addons {
 
 namespace {
 
-/** 当面: Stack-chan 標準サーボ（首など）を完全停止。戻すときは false に。 */
-constexpr bool kForceAllServosOff = true;
+/** false: サーバ／API 指令の首サーボを許可。自動きょろきょろは modifyLock 側で抑制。 */
+constexpr bool kForceAllServosOff = false;
 
 constexpr std::string_view kNvsNamespace = "addon";
 constexpr std::string_view kServoHoldKey = "servo_hold";

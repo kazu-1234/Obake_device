@@ -6,6 +6,8 @@
 #include <esp_codec_dev.h>
 #include <esp_codec_dev_defaults.h>
 
+#include <vector>
+
 class CoreS3AudioCodec : public AudioCodec {
 private:
     const audio_codec_data_if_t* data_if_ = nullptr;
@@ -33,5 +35,11 @@ public:
     virtual void EnableInput(bool enable) override;
     virtual void EnableOutput(bool enable) override;
 };
+
+/**
+ * Xiaozhi AudioService が読んだ直近マイクをコピーする（二重 esp_codec_dev_read を避ける）。
+ * out にはチャンネルインターリーブのまま入る。未取得なら false。
+ */
+bool ObakeCopyLastMicInput(std::vector<int16_t>& out, int* channels);
 
 #endif // _BOX_AUDIO_CODEC_H

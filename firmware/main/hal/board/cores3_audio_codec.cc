@@ -4,8 +4,30 @@
 #include <driver/i2c_master.h>
 #include <driver/i2s_tdm.h>
 
+#include <mutex>
+#include <vector>
+
 #define TAG "CoreS3AudioCodec"
 
+namespace {
+// AudioService の Read 結果を Media WS へ流すための直近バッファ
+std::mutex s_mic_tee_mu;
+std::vector<int16_t> s_mic_tee;
+int s_mic_tee_channels = 1;
+}  // namespace
+
+bool ObakeCopyLastMicInput(std::vector<int16_t>& out, int* channels)
+{
+    std::lock_guard<std::mutex> lock(s_mic_tee_mu);
+    if (s_mic_tee.empty()) {
+        return false;
+    }
+    out = s_mic_tee;
+    if (channels) {
+        *channels = s_mic_tee_channels;
+    }
+    return true;
+}
 CoreS3AudioCodec::CoreS3AudioCodec(void* i2c_master_handle, int input_sample_rate, int output_sample_rate,
     gpio_num_t mclk, gpio_num_t bclk, gpio_num_t ws, gpio_num_t dout, gpio_num_t din,
     uint8_t aw88298_addr, uint8_t es7210_addr, bool input_reference) {
@@ -234,6 +256,12 @@ void CoreS3AudioCodec::EnableOutput(bool enable) {
 int CoreS3AudioCodec::Read(int16_t* dest, int samples) {
     if (input_enabled_) {
         ESP_ERROR_CHECK_WITHOUT_ABORT(esp_codec_dev_read(input_dev_, (void*)dest, samples * sizeof(int16_t)));
+        // Media WS 用 tee（別タスクからの二重 Read だと無音になりやすい）
+        {
+            std::lock_guard<std::mutex> lock(s_mic_tee_mu);
+            s_mic_tee.assign(dest, dest + samples);
+            s_mic_tee_channels = input_channels_ > 0 ? input_channels_ : 1;
+        }
     }
     return samples;
 }

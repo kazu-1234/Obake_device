@@ -222,15 +222,20 @@ void Hal::setLaserEnabled(bool enabled)
     static bool laser_enabled = false;
     static bool is_inited     = false;
 
-    if (laser_enabled == enabled) {
+    const gpio_num_t laser_pin = GPIO_NUM_2;
+
+    // CUSTOM / PaHub 中は GPIO2 を I2C(SDA) に返す。掴んだまま skip すると Port.A が死ぬ
+    if (stackchan::custom::IsCustomSessionActive() || stackchan_obake_pahub_port_a_in_use()) {
+        if (is_inited || laser_enabled) {
+            gpio_reset_pin(laser_pin);
+            is_inited     = false;
+            laser_enabled = false;
+            mclog::tagInfo(_tag, "laser released for Obake Port.A (GPIO2)");
+        }
         return;
     }
 
-    const gpio_num_t laser_pin = GPIO_NUM_2;
-
-    // CUSTOM 中、または PaHub バス確保後はレーザーで GPIO2 を奪わない
-    if (stackchan::custom::IsCustomSessionActive() || stackchan_obake_pahub_port_a_in_use()) {
-        mclog::tagInfo(_tag, "laser skip (Obake CUSTOM / Port.A GPIO2)");
+    if (laser_enabled == enabled) {
         return;
     }
 

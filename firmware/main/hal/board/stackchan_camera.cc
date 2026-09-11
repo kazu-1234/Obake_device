@@ -2,6 +2,7 @@
 #include <sys/ioctl.h>
 #include <sys/mman.h>
 #include <sys/param.h>
+#include <sys/select.h>
 #include <unistd.h>
 #include <errno.h>
 #include <esp_heap_caps.h>
@@ -865,6 +866,22 @@ bool StackChanCamera::StreamCaptures()
         struct v4l2_buffer buf = {};
         buf.type               = V4L2_BUF_TYPE_VIDEO_CAPTURE;
         buf.memory             = V4L2_MEMORY_MMAP;
+        // DQBUF 無限待ちで Media WS などが固まるのを防ぐ（1 秒で失敗復帰）
+        {
+            fd_set fds;
+            FD_ZERO(&fds);
+            FD_SET(video_fd_, &fds);
+            struct timeval tv = {.tv_sec = 1, .tv_usec = 0};
+            const int sel     = select(video_fd_ + 1, &fds, nullptr, nullptr, &tv);
+            if (sel == 0) {
+                ESP_LOGW(TAG, "StreamCaptures: DQBUF wait timeout");
+                return false;
+            }
+            if (sel < 0) {
+                ESP_LOGE(TAG, "StreamCaptures: select failed errno=%d", errno);
+                return false;
+            }
+        }
         if (ioctl(video_fd_, VIDIOC_DQBUF, &buf) != 0) {
             ESP_LOGE(TAG, "VIDIOC_DQBUF failed");
             return false;
@@ -887,10 +904,11 @@ bool StackChanCamera::StreamCaptures()
             }
 
 #ifdef CONFIG_XIAOZHI_ENABLE_ROTATE_CAMERA_IMAGE
-            ESP_LOGW(TAG, "mmap_buffers_[buf.index].length = %d, sensor_width = %d, sensor_height = %d",
+            ESP_LOGD(TAG, "mmap_buffers_[buf.index].length = %d, sensor_width = %d, sensor_height = %d",
                      mmap_buffers_[buf.index].length, sensor_width_, sensor_height_);
 #else
-            ESP_LOGW(TAG, "mmap_buffers_[buf.index].length = %d, frame.width = %d, frame.height = %d",
+            // 毎フレーム WARN だと Media WS 送信時にログ洪水になるため DEBUG へ
+            ESP_LOGD(TAG, "mmap_buffers_[buf.index].length = %d, frame.width = %d, frame.height = %d",
                      mmap_buffers_[buf.index].length, frame_.width, frame_.height);
 #endif  // CONFIG_XIAOZHI_ENABLE_ROTATE_CAMERA_IMAGE
             ESP_LOG_BUFFER_HEXDUMP(TAG, mmap_buffers_[buf.index].start, MIN(mmap_buffers_[buf.index].length, 256),
