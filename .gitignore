@@ -3,6 +3,9 @@
 secrets.h
 version_history.txt
 
+# 端末固有 Wi-Fi（パスワード入り。example は追跡可）
+firmware/main/stackchan/custom/obake/wifi_credentials.local.h
+
 # ESP-IDF firmware build artifacts
 firmware/build/
 # USB 渡し用（bin は Git に載せない）
