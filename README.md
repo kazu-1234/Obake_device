@@ -4,7 +4,7 @@
 
 参考図: [reference/content.png](reference/content.png)
 
-表示版: v0.5.2
+表示版: v0.5.3
 
 管理リポは **この `Obake_device` のみ**。中で用途ごとに分ける:
 
