@@ -24,13 +24,13 @@ except ImportError:
 
 # 既定のバックアップ置き場（16MB bin）
 DEFAULT_BACKUP_DIR = Path.home() / "Documents" / "stackchan_backup"
-# 既定の本番ビルド（Stack-chan / Obake IDF）
-DEFAULT_FW_BUILD = (
-    Path.home() / "Documents" / "Arduino" / "Stackchan" / "firmware" / "build"
-)
+# 既定: サブ PC から渡した flash bundle（IDF の build 丸ごとは不要）
+_REPO = Path.home() / "Documents" / "Arduino" / "Obake_device"
+DEFAULT_FW_BUILD = _REPO / "dist" / "obake_flash_bundle"
 # 追加で探すビルド候補（あれば一覧に出す）
 EXTRA_FW_BUILDS = [
-    Path.home() / "Documents" / "Arduino" / "Obake_device" / "firmware" / "build",
+    _REPO / "firmware" / "build",
+    Path.home() / "Documents" / "Arduino" / "Stackchan" / "firmware" / "build",
 ]
 
 CHIP = "esp32s3"

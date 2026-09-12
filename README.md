@@ -16,6 +16,8 @@
 別 PC へ移すときは [引き継ぎ.md](引き継ぎ.md) を先に読む。  
 **更新のたびにこのリポへ commit & push**（詳細は引き継ぎ §0）。
 
+**PC 分担:** メイン＝実機と書き込み、サブ＝ビルド（IDF）。bin は Git に載せない。手順は引き継ぎ **§6.3**。
+
 当面の脳は **Stack-chan の CoreS3**。カメラ・マイク・スピーカも Stack-chan。会話は当面 Xiaozhi（あとで独自に差し替え）。液晶は口。  
 免責: 個人の製作・ハッカソン用途。部品・配線の焼損や落下の責任は負わない。
 
@@ -69,7 +71,7 @@ Grove（HY2.0、ピッチ 2.0 mm）と 1インチ OLED（ピンヘッダ 2.54 mm
 
 ## 書き込み
 
-本番: [`firmware/`](firmware/) を **ESP-IDF** で build / flash（[引き継ぎ.md](引き継ぎ.md) §6）。  
+本番: [`firmware/`](firmware/) を **ESP-IDF** で build（サブ PC）→ bundle をメイン PC で flash（[引き継ぎ.md](引き継ぎ.md) §6.3）。
 Flash の退避と戻し: [バックアップと戻し方.md](バックアップと戻し方.md)  
 ハード確認用 Arduino のみ: [arduino/obake_pahub_bringup/FLASH.md](arduino/obake_pahub_bringup/FLASH.md)
 

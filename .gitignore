@@ -5,6 +5,9 @@ version_history.txt
 
 # ESP-IDF firmware build artifacts
 firmware/build/
+# USB 渡し用（bin は Git に載せない）
+dist/obake_flash_bundle/
+dist/obake_flash_bundle.zip
 firmware/sdkconfig
 firmware/sdkconfig.old
 firmware/sdkconfig.defaults.local

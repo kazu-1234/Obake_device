@@ -5,6 +5,8 @@
 #   powershell -ExecutionPolicy Bypass -File scripts\fast_build.ps1 -Flash -Monitor
 #
 # 注意:
+# - 既定の分担: このスクリプトはサブ（ビルド）PC 向け。実機への書き込みはメイン PC。
+#   ビルド後は .\scripts\export_flash_bundle.ps1 -Zip を渡し、メインで flash_bundle.ps1
 # - idf.py fullclean / reconfigure / sdkconfig の大規模変更は 2000+ ステップの再コンパイルになる
 # - assets / partitions / 依存コンポーネント触りも再ビルドが重い
 param(
