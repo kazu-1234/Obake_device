@@ -69,7 +69,7 @@ Grove（HY2.0、ピッチ 2.0 mm）と 1インチ OLED（ピンヘッダ 2.54 mm
 
 ## 書き込み
 
-本番: [`firmware/`](firmware/) を **ESP-IDF** で build / flash（[引き継ぎ.md](引き継ぎ.md) 7 節）。  
+本番: [`firmware/`](firmware/) を **ESP-IDF** で build / flash（[引き継ぎ.md](引き継ぎ.md) §6）。  
 Flash の退避と戻し: [バックアップと戻し方.md](バックアップと戻し方.md)  
 ハード確認用 Arduino のみ: [arduino/obake_pahub_bringup/FLASH.md](arduino/obake_pahub_bringup/FLASH.md)
 
